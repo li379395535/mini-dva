@@ -8,9 +8,6 @@
     "url": "https://github.com/li379395535/mini-dva"
   },
   "homepage": "https://github.com/li379395535/mini-dva",
-  "publishConfig": {
-    "registry": "https://npm.pkg.github.com/"
-  },
   "files": [
     "./dist/index.js"
   ],
