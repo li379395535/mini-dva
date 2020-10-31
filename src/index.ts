@@ -6,7 +6,7 @@ interface IMapper<T=string> {
 
 interface IAction<T = string> {
   type: T;
-  payload?: IMapper<any>;
+  payload?: IMapper<any> | any;
   callback?: Function;
 }
 
@@ -15,15 +15,15 @@ interface IDispatch<T=string> {
 }
 
 interface ILoading {
-  loading: IMapper<boolean>;
+  loading?: IMapper<boolean>;
 }
 
 type LoadingState<S> = S & ILoading;
 
-interface IModal<S> {
+export interface IModel<S> {
   state: LoadingState<S>;
   effects: IMapper<(action: IAction, put: IDispatch) => Promise<void>>;
-  reducer: IMapper<Reducer<LoadingState<S>, IAction>>;
+  reducers: IMapper<Reducer<LoadingState<S>, IAction>>;
 }
 
 interface IMapFn<S> {
@@ -32,61 +32,86 @@ interface IMapFn<S> {
 
 const LoadingAction = 'setLoading';
 
-export function useStoreFactory<S>({ state, effects, reducer }: IModal<S>): [LoadingState<S>, IDispatch ] {
-  const reducerFn:Reducer<LoadingState<S>, IAction> = useCallback((preState, action) => {
-    const {type} = action;
-    if (type === LoadingAction) {
-      let { loading } = preState;
-      if (!loading) {
-        loading = {}
-      }
+type IStore<S> = [LoadingState<S>, IDispatch];
 
-      loading = { ...loading, ...action.payload};
-      return {...preState, loading };
-    } else {
-      if (reducer[type]) {
-        return reducer[type](preState, action);
+export function storeFactory<S>({
+  state, effects, reducers
+}: IModel<S>) {
+  function useStore(): IStore<S> {
+    const reducerFn:Reducer<LoadingState<S>, IAction> = (preState, action) => {
+      const {type} = action;
+      if (type === LoadingAction) {
+        let { loading } = preState;
+        if (!loading) {
+          loading = {}
+        }
+  
+        loading = { ...loading, ...action.payload};
+        return {...preState, loading };
+      } else {
+        if (reducers[type]) {
+          return reducers[type](preState, action);
+        }
+        return preState;
       }
-      return preState;
-    }
-  }, []);
-  const [store, put] = useReducer<Reducer<LoadingState<S>, IAction>>(reducerFn, state)
-  const dispatch:IDispatch = useCallback(async (action) => {
-    const { type } = action;
-    if(effects[type]) {
-      try {
-        put({
-          type: LoadingAction,
-          payload: {
-            [type]: true,
-          }
-        })
-        await effects[type](action, put);
-      } finally {
-        put({
-          type: LoadingAction,
-          payload: {
-            [type]: false,
-          }
-        })
+    };
+    const [store, put] = useReducer<Reducer<LoadingState<S>, IAction>>(reducerFn, state)
+    const dispatch:IDispatch = async (action) => {
+      const { type } = action;
+      if(effects[type]) {
+        try {
+          put({
+            type: LoadingAction,
+            payload: {
+              [type]: true,
+            }
+          })
+          await effects[type](action, put);
+        } finally {
+          put({
+            type: LoadingAction,
+            payload: {
+              [type]: false,
+            }
+          })
+        }
+      } else {
+        put(action);
       }
-    } else {
-      put(action);
-    }
-  }, [put, effects]);
-  return [store, dispatch];
+    };
+    return [store, dispatch];
+
+  }
+
+  return useStore;
 }
 
-export function useContextFactory<S>(modal: IModal<S>) {
-  const [store, dispatch] = useStoreFactory<S>(modal);
-  const Context = React.createContext<[LoadingState<S>, IDispatch]>([store, dispatch]);
-  const useConnect = (mapFn?: IMapFn<S>) => {
+export function modelFactory<S>()
+  : [
+    React.Context<IStore<S>>,
+    (mapFn?: IMapFn<S>) => IStore<S>
+  ] {
+  const Context = React.createContext<IStore<S>>([] as any);
+  const useConnect = (mapFn?: IMapFn<S>): IStore<S> => {
     const [store, dispatch] = useContext(Context);
     if (mapFn) {
       return [mapFn(store), dispatch];
     }
-    return useContext(Context);
+    return [store, dispatch];
   }
+ 
   return [Context, useConnect];
+}
+
+export function registryModel<S>(model: IModel<S>)
+  : [
+      React.Context<IStore<S>>,
+      (mapFn?: IMapFn<S>) => IStore<S>,
+      () => IStore<S>,
+    ]
+{
+  const useStore = storeFactory(model);
+  const [Context, useConnect] = modelFactory<S>();
+  return [Context, useConnect, useStore];
 }
 
