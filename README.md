@@ -48,22 +48,6 @@ const Model: IModel<IStateType> = {
 export const [Context, useConnect, useStore] = registryModel(Model);
 ```
 
-#### /src/index.tsx
-```
-import { Context, useConnect } from './modal';
-import Count from './Count';
-import ReactDOM from 'react-dom';
-
-const HomePage = () => {
-  const modal = useConnect();
-  return (
-    <Context.Provider value={modal}>
-      <Count />
-    </Context.Provider>
-  )
-}
-```
-
 #### Count.tsx
 ```
 import React, { FC, useCallback } from 'react';
@@ -85,6 +69,23 @@ const Count: FC = () => {
       <span>{count}</span>
       <button onClick={handleClick}>Add</button>
     </div>
+  )
+}
+```
+
+
+#### /src/index.tsx
+```
+import { Context, useStore } from './model';
+import Count from './Count';
+import ReactDOM from 'react-dom';
+
+const HomePage = () => {
+  const model = useStore();
+  return (
+    <Context.Provider value={model}>
+      <Count />
+    </Context.Provider>
   )
 }
 ```
